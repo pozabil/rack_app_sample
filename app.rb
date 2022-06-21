@@ -1,37 +1,20 @@
+require_relative 'time_formatter'
+
 class App
-  DIRECTIVES = {
-    'year' => '%Y',
-    'month' => '%m',
-    'day' => '%d',
-    'hour' => '%H',
-    'minute' => '%M',
-    'second' => '%S'
-  }
-
-  def initialize
-    @status = nil
-    @headers = {}
-    @body =[]
-  end
-
   def call(env)
-    if correct_request(env) && formats(env).any?
-      @headers['Content-Type'] = 'text/plain'
+    formats = formats(env)
 
-      if incorrect_formats(env).empty?
-        @status = 200
-        @body = [formatted_time(formats(env))]
-      else
-        @status = 400
-        @body = ["Unknown time format [#{incorrect_formats(env).join(',')}]"]
-      end
+    if correct_request(env) && formats.any?
+      response_body = TimeFormatter.new(formats).call
+
+      Rack::Response.new(
+        [response_body],
+        response_body.match?(/\AUnknown/) ? 400 : 200,
+        {'Content-Type' => 'text/plain'}
+        ).finish
     else
-      @status = 404
-      @headers = {}
-      @body =[]
+      Rack::Response.new([],404,{}).finish
     end
-
-    [@status, @headers, @body]
   end
 
   private
@@ -43,13 +26,5 @@ class App
   def formats(env)
     delimiters = Regexp.union(',', '%2C')
     env['QUERY_STRING'].delete_prefix('format=').split(delimiters)
-  end
-
-  def incorrect_formats(env)
-    formats(env).reject{ |f| DIRECTIVES.keys.include?(f) }
-  end
-
-  def formatted_time(formats)
-    Time.now.strftime(formats.join('-').gsub(Regexp.union(DIRECTIVES.keys), DIRECTIVES))
   end
 end

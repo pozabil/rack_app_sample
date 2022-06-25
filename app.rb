@@ -5,19 +5,21 @@ class App
     formats = formats(env)
 
     if correct_request(env) && formats.any?
-      response_body = TimeFormatter.new(formats).call
+      time_formatter = TimeFormatter.new(formats)
 
-      Rack::Response.new(
-        [response_body],
-        response_body.match?(/\AUnknown/) ? 400 : 200,
-        {'Content-Type' => 'text/plain'}
-        ).finish
+      make_response(time_formatter.success? ? 200 : 400, [time_formatter.body])
     else
-      Rack::Response.new([],404,{}).finish
+      make_response(404)
     end
   end
 
   private
+
+  def make_response(status, body = [])
+    headers = status == 404 ? {} : {'Content-Type' => 'text/plain'}
+    puts body.inspect
+    Rack::Response.new(body, status, headers).finish
+  end
 
   def correct_request(env)
     env['REQUEST_METHOD'] == 'GET' && env['REQUEST_PATH'] == '/time' && env['QUERY_STRING'].match?(/\Aformat=/)
